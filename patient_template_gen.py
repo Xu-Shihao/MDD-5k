@@ -90,7 +90,7 @@ class PatientCases():
         num = 0  # 患者编号计数器
         
         # 读取Excel文件
-        file = pd.read_excel(self.xlsx_path, sheet_name='Sheet1').iloc[0:10,:]
+        file = pd.read_excel(self.xlsx_path, sheet_name='Sheet1')
         
         # 预处理数据，收集需要API处理的患者信息
         patients_for_api = []
@@ -112,6 +112,22 @@ class PatientCases():
                 output_dict['ICD编码'] = row['DiagnosisCode'] if str(row['DiagnosisCode'])[-1] != ',' else str(row['DiagnosisCode'])[:-1]
                 # 清理诊断结果末尾的逗号
                 output_dict['诊断结果'] = row['Diagnosis'] if str(row['Diagnosis'])[-1] != ',' else str(row['Diagnosis'])[:-1]
+                
+                # ICD编码NAN处理
+                if pd.isna(output_dict['ICD编码']):
+                    
+                    if "抑郁" in output_dict['诊断结果'] and "焦虑" in output_dict['诊断结果']:
+                        output_dict['ICD编码'] = 'F32,F41'
+                        print(f"Warning: ICD编码为空，诊断结果为抑郁和焦虑，已替换为F32,F41")
+                    elif "抑郁" in output_dict['诊断结果']:
+                        output_dict['ICD编码'] = 'F32'
+                        print(f"Warning: ICD编码为空，诊断结果为抑郁，已替换为F32")
+                    elif "焦虑" in output_dict['诊断结果']:
+                        output_dict['ICD编码'] = 'F41'
+                        print(f"Warning: ICD编码为空，诊断结果为焦虑，已替换为F41")
+                    else:
+                        output_dict['ICD编码'] = 'F00'
+                        print(f"Warning: ICD编码为空，已替换为F00，诊断结果为：{output_dict['诊断结果']}")
                 
                 # 使用正则表达式提取主诉信息
                 output_dict['主诉'] = '无' if re.findall(r"主诉：(.+)", str(row['ChiefComplaint'])) == [" "] else re.findall(r"主诉：(.+)", str(row['ChiefComplaint']))[-1]
@@ -157,6 +173,11 @@ class PatientCases():
                             'personal_history': output_dict['个人史'],
                             'mental_exam': output_dict['精神检查']
                         })
+                        
+                # 将其他部分的nan的值替换为空字符串
+                for key in output_dict.keys():
+                    if pd.isna(output_dict[key]):
+                        output_dict[key] = ''
         
         # 并行处理API调用
         if self.use_api and patients_for_api:

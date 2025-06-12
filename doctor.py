@@ -52,9 +52,9 @@ class Doctor(llm_tools_api.DoctorCost):
         self.doctor_persona = "你是一名{}的{}专业的精神卫生中心临床心理科主任医师，对一名患者进行问诊。注意，你有如下的问诊习惯，你在所有的对话过程中都要记住和保持这些问诊习惯：\
             你尤其擅长诊断{}，你的问诊速度是{}的，你的交流风格是{}的，你{}在适当到时候与患者进行共情对话，你{}向患者解释一些专业名词术语。使用口语化的表达。" \
             .format(self.doctor_prompt['age'], self.doctor_prompt['gender'], self.doctor_prompt['special'], self.doctor_prompt['speed'], self.doctor_prompt['commu'], self.doctor_prompt['empathy'], self.doctor_prompt['explain'])
-        print(self.doctor_prompt['empathy'])
+        # print(self.doctor_prompt['empathy'])
         self.patient_persona = "患者是一名{}岁的{}性。".format(self.patient_template['年龄'], self.patient_template['性别'])
-        final_prompt = self.doctor_persona + self.patient_persona + "现在你与患者的对话开始，通常一开始你会询问有关{}，不要询问例如睡眠、食欲之类的具体症状。使用口语化表达与患者交流，不要输出类似”好的，我会按照您的要求开始问诊“的话。".format(first_topic)
+        final_prompt = self.patient_persona + "现在你与患者的对话开始，通常一开始你会询问有关{}，不要询问例如睡眠、食欲之类的具体症状。使用口语化表达与患者交流，不要输出类似”好的，我会按照您的要求开始问诊“的话。".format(first_topic)
 
         if self.use_api:
             self.client = llm_tools_api.doctor_client_init(self.model_name)
@@ -73,7 +73,7 @@ class Doctor(llm_tools_api.DoctorCost):
         if self.use_api:
             if self.dialbegin == True:
                 self.doctorbot_init(self.topic_seq[self.current_idx])
-                print(self.topic_seq)
+                # print(self.topic_seq)
                 self.current_idx += 1
                 chat_response = self.client.chat.completions.create(
                     model=self.model_name,
