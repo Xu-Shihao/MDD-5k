@@ -106,7 +106,7 @@ def api_load_for_background_gen(model_name, input_sentence):    #background stor
     chat_response = client.chat.completions.create(
         model=model_name,
         messages=messages,
-        top_p=ModelConfig.DEFAULT_TOP_P
+        top_p=SystemConfig.DEFAULT_TOP_P
     )
     response = chat_response.choices[0].message.content
     return response

@@ -25,11 +25,11 @@ from config import PathConfig, get_model_name
 class ConcurrencyConfig:
     """并发处理配置"""
     # API提取阶段的最大并发数
-    MAX_API_EXTRACTION_WORKERS = 10
+    MAX_API_EXTRACTION_WORKERS = 32
     # 背景故事生成阶段的最大并发数  
-    MAX_STORY_GENERATION_WORKERS = 20
+    MAX_STORY_GENERATION_WORKERS = 32
     # 单个患者API调用的最大并发数（个人史和精神检查并行）
-    MAX_SINGLE_PATIENT_API_WORKERS = 2
+    MAX_SINGLE_PATIENT_API_WORKERS = 5
     # 请求超时时间（秒）
     REQUEST_TIMEOUT = 30
 
@@ -456,7 +456,8 @@ class PatientCases():
 patient = PatientCases(PATIENT_CASES_ORIGIN_PATH, PATIENT_CASES_JSON_PATH, PROMPT_PATH, use_api=True)
 
 # 生成患者案例JSON文件
-patient.patient_cases_json()
+if not os.path.exists(PATIENT_CASES_JSON_PATH):
+    patient.patient_cases_json()
 
 # 输出患者案例的统计信息
 patient.statistics()
