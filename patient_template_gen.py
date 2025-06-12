@@ -19,7 +19,7 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 import threading
 
 # 导入配置文件
-from config import PathConfig, get_model_name
+from config import PathConfig, get_model_name, SystemConfig
 
 # 并发处理配置类
 class ConcurrencyConfig:
@@ -31,7 +31,7 @@ class ConcurrencyConfig:
     # 单个患者API调用的最大并发数（个人史和精神检查并行）
     MAX_SINGLE_PATIENT_API_WORKERS = 5
     # 请求超时时间（秒）
-    REQUEST_TIMEOUT = 30
+    REQUEST_TIMEOUT = 60
 
 # 取消设置代理相关的环境变量
 proxy_vars = [
@@ -90,7 +90,7 @@ class PatientCases():
         num = 0  # 患者编号计数器
         
         # 读取Excel文件
-        file = pd.read_excel(self.xlsx_path, sheet_name='Sheet1')
+        file = pd.read_excel(self.xlsx_path, sheet_name='Sheet1').iloc[0:10,:]
         
         # 预处理数据，收集需要API处理的患者信息
         patients_for_api = []
@@ -463,7 +463,7 @@ if not os.path.exists(PATIENT_CASES_JSON_PATH):
 patient.statistics()
 
 # 设置每个患者案例生成的对话数量
-NUM = 5    # 1个患者案例将用于生成5个对话
+NUM = SystemConfig.NUM_CONVERSATIONS    # 1个患者案例将用于生成5个对话
 
 # 读取患者信息JSON文件
 with open(PATIENT_CASES_JSON_PATH, 'r') as f:

@@ -78,23 +78,22 @@ def api_load_for_extraction(model_name, input_sentence):    #extract kv pair
     client = tool_client_init(model_name)
     example = {"孕产情况":"足月顺产",
                 "发育情况":"正常"}
-    prompt = f'提取文本中所有形如A：B的键值对，以json格式输出，不允许输出其他文字！'
+    prompt = f'提取文本中所有形如A：B的键值对，以json格式输出，不允许输出其他文字！文本：{input_sentence}'
     messages.extend([{"role": "system", "content": "/no_think 你是一个功能强大的助手，可以处理各种文本任务"},
                 {"role": "user", "content": prompt}])
-    chat_response = client.chat.completions.create(
-        model=model_name,
-        messages=messages
-    )
-    response = chat_response.choices[0].message.content
-    messages.extend([{"role": "assistant", "content":response},
-                    {"role": "user", "content":input_sentence}])
     chat_response = client.chat.completions.create(
         model=model_name,
         messages=messages,
         response_format={"type": "json_object"},
         temperature=SystemConfig.DEFAULT_TEMPERATURE
     )
+    
     response = chat_response.choices[0].message.content
+    
+    # 如果response为空，则使用reasoning_content (##BUG: reasoning_content 中会有结果)
+    if not response:
+        response = chat_response.choices[0].message.reasoning_content
+        
     return response
 
 def api_load_for_background_gen(model_name, input_sentence):    #background story generation
@@ -109,29 +108,32 @@ def api_load_for_background_gen(model_name, input_sentence):    #background stor
         top_p=SystemConfig.DEFAULT_TOP_P
     )
     response = chat_response.choices[0].message.content
+    
+    # 如果response为空，则使用reasoning_content (##BUG: reasoning_content 中会有结果)
+    if not response:
+        response = chat_response.choices[0].message.reasoning_content
+        
     return response
 
 def api_background_exist(model_name, input_sentence):    #check if background already exists
     messages = []
     client = tool_client_init(model_name)
-    prompt = "你需要判断输入内容中是否包含了患者过去的经历，这段经历直接或者间接导致了患者出现精神疾病。例如，“”"
+    prompt = "你需要判断输入内容中是否包含了患者过去的经历，这段经历直接或者间接导致了患者出现精神疾病。\n\n###输入文本如下：{}".format(input_sentence)
     messages.extend([{"role": "system", "content": "/no_think 你是一个功能强大的文本助手，非常善于写故事"},
                 {"role": "user", "content": prompt}])
+
     chat_response = client.chat.completions.create(
         model=model_name,
         messages=messages,
-        temperature=0.4
+        top_p=SystemConfig.DEFAULT_TOP_P,
+        temperature=SystemConfig.DEFAULT_TEMPERATURE
     )
     response = chat_response.choices[0].message.content
-    messages.extend([{"role": "assistant", "content":response},
-                    {"role": "user", "content":input_sentence}])
-    chat_response = client.chat.completions.create(
-        model=model_name,
-        messages=messages,
-        top_p=0.95,
-        temperature=1
-    )
-    response = chat_response.choices[0].message.content
+    
+    # 如果response为空，则使用reasoning_content (##BUG: reasoning_content 中会有结果)
+    if not response:
+        response = chat_response.choices[0].message.reasoning_content
+        
     return response
 
 def api_dialogue_state(model_name, input_sentence):
@@ -143,9 +145,14 @@ def api_dialogue_state(model_name, input_sentence):
     chat_response = client.chat.completions.create(
         model=model_name,
         messages=messages,
-        temperature=0.5
+        temperature=SystemConfig.DEFAULT_TEMPERATURE
     )
     response = chat_response.choices[0].message.content
+    
+    # 如果response为空，则使用reasoning_content (##BUG: reasoning_content 中会有结果)
+    if not response:
+        response = chat_response.choices[0].message.reasoning_content
+        
     return response, [chat_response.usage.prompt_tokens, chat_response.usage.completion_tokens]
 
 def api_parse_experience(model_name, input_sentence):
@@ -161,6 +168,11 @@ def api_parse_experience(model_name, input_sentence):
         top_p=0.95
     )
     response = chat_response.choices[0].message.content
+    
+    # 如果response为空，则使用reasoning_content (##BUG: reasoning_content 中会有结果)
+    if not response:
+        response = chat_response.choices[0].message.reasoning_content
+        
     return response, [chat_response.usage.prompt_tokens, chat_response.usage.completion_tokens]
 
 def api_topic_detection(model_name, input_sentence):
@@ -175,6 +187,11 @@ def api_topic_detection(model_name, input_sentence):
         temperature=1
     )
     response = chat_response.choices[0].message.content
+    
+    # 如果response为空，则使用reasoning_content (##BUG: reasoning_content 中会有结果)
+    if not response:
+        response = chat_response.choices[0].message.reasoning_content
+        
     return response, [chat_response.usage.prompt_tokens, chat_response.usage.completion_tokens]
 
 def load_background_story(path):
@@ -194,6 +211,11 @@ def api_patient_experience_trigger(model_name, dialogue_history, path):    #返�
         temperature=0.8
     )
     response = chat_response.choices[0].message.content
+    
+    # 如果response为空，则使用reasoning_content (##BUG: reasoning_content 中会有结果)
+    if not response:
+        response = chat_response.choices[0].message.reasoning_content
+        
     if 'True' in response:
         response = load_background_story(path)
         return response[0], [chat_response.usage.prompt_tokens, chat_response.usage.completion_tokens]
@@ -217,6 +239,11 @@ def api_isroleplay_end(model_name, input_sentence):
             temperature=0.6
         )
         response = chat_response.choices[0].message.content
+        
+        # 如果response为空，则使用reasoning_content (##BUG: reasoning_content 中会有结果)
+        if not response:
+            response = chat_response.choices[0].message.reasoning_content
+            
         if '是' in response:
             return True
         elif '否' in response:
