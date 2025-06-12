@@ -12,6 +12,23 @@ from config import (
     SystemConfig
 )
 
+# 取消设置代理相关的环境变量
+proxy_vars = [
+    'http_proxy',
+    'https_proxy', 
+    'HTTP_PROXY',
+    'HTTPS_PROXY',
+    'all_proxy'
+]
+
+for var in proxy_vars:
+    # 使用pop方法安全地删除环境变量，如果不存在也不会报错
+    removed_value = os.environ.pop(var, None)
+    if removed_value is not None:
+        print(f"已取消设置环境变量: {var} = {removed_value}")
+    else:
+        print(f"环境变量 {var} 不存在，跳过")
+        
 DOCTOR_PROMPT_PATH = get_doctor_prompt_path()
 PATIENT_INFO_PATH = get_patient_info_path()
 DIAGTREE_PATH = get_diagtree_path()
@@ -55,6 +72,11 @@ def process_single_patient(patient_template):
             print(f"患者{patient_template['患者']} 对话{i+1} - 患者：{patient_response}")
             doctor_response, current_topic, doctor_cost = doc.doctor_response_gen(patient_response, dialogue_history)
             
+            if not doctor_cost:
+                doctor_cost = 0
+            if not patient_cost:
+                patient_cost = 0
+                
             patient_total_cost += doctor_cost + patient_cost
             
             if '诊断结束，你的诊断结果' in doctor_response:
@@ -87,7 +109,7 @@ def main():
         patient_info = json.load(f)
     
     # 设置并行处理的最大工作线程数，可以根据需要调整
-    max_workers = min(len(patient_info), os.cpu_count() or 1)
+    max_workers = 1
     
     print(f"开始并行处理 {len(patient_info)} 个患者，使用 {max_workers} 个线程")
     
