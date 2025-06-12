@@ -320,7 +320,7 @@ class PatientCases():
                                             time=dict_for_gen['time'],poeple=dict_for_gen['people'],experience=dict_for_gen['experience'])
             
             # 调用API生成背景故事
-            response = llm_tools_api.api_load_for_background_gen("/tcci_mnt/shihao/models/Qwen3-8B", text_prompt)
+            response = llm_tools_api.api_load_for_background_gen(get_model_name(), text_prompt)
             return response
         else:
             return ''
