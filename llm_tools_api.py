@@ -79,7 +79,7 @@ def api_load_for_extraction(model_name, input_sentence):    #extract kv pair
     example = {"孕产情况":"足月顺产",
                 "发育情况":"正常"}
     prompt = f'提取文本中所有形如A：B的键值对，以json格式输出，不允许输出其他文字！'
-    messages.extend([{"role": "system", "content": "你是一个功能强大的助手，可以处理各种文本任务"},
+    messages.extend([{"role": "system", "content": "/no_think 你是一个功能强大的助手，可以处理各种文本任务"},
                 {"role": "user", "content": prompt}])
     chat_response = client.chat.completions.create(
         model=model_name,

@@ -15,10 +15,41 @@ import llm_tools_api
 import ast
 from tqdm import tqdm
 import random
+from concurrent.futures import ThreadPoolExecutor, as_completed
+import threading
 
 # 导入配置文件
 from config import PathConfig, get_model_name
 
+# 并发处理配置类
+class ConcurrencyConfig:
+    """并发处理配置"""
+    # API提取阶段的最大并发数
+    MAX_API_EXTRACTION_WORKERS = 10
+    # 背景故事生成阶段的最大并发数  
+    MAX_STORY_GENERATION_WORKERS = 20
+    # 单个患者API调用的最大并发数（个人史和精神检查并行）
+    MAX_SINGLE_PATIENT_API_WORKERS = 2
+    # 请求超时时间（秒）
+    REQUEST_TIMEOUT = 30
+
+# 取消设置代理相关的环境变量
+proxy_vars = [
+    'http_proxy',
+    'https_proxy', 
+    'HTTP_PROXY',
+    'HTTPS_PROXY',
+    'all_proxy'
+]
+
+for var in proxy_vars:
+    # 使用pop方法安全地删除环境变量，如果不存在也不会报错
+    removed_value = os.environ.pop(var, None)
+    if removed_value is not None:
+        print(f"已取消设置环境变量: {var} = {removed_value}")
+    else:
+        print(f"环境变量 {var} 不存在，跳过")
+        
 # 定义文件路径常量
 PATIENT_CASES_ORIGIN_PATH = PathConfig.PATIENT_CASES_ORIGIN_PATH  # 原始患者信息Excel文件路径
 PATIENT_CASES_JSON_PATH = PathConfig.PATIENT_CASES_JSON_PATH      # 转换后的JSON文件路径
@@ -61,6 +92,10 @@ class PatientCases():
         # 读取Excel文件
         file = pd.read_excel(self.xlsx_path, sheet_name='Sheet1')
         
+        # 预处理数据，收集需要API处理的患者信息
+        patients_for_api = []
+        patients_basic_info = []
+        
         # 逐行处理患者数据
         for index, row in file.iterrows():
             # 过滤掉关键字段为空的记录
@@ -94,7 +129,7 @@ class PatientCases():
                 output_dict['处理意见'] = '无' if re.findall(r"处理意见：(.+)", str(row['TreatmentRecommendation'])) == [" "] else re.findall(r"处理意见：(.+)", str(row['TreatmentRecommendation']))[-1]
 
                 # 进一步清理家族史数据
-                output_dict['家族史'] = '无' if output_dict['家族史'] == '家族史：阴性。 ' or output_dict['家族史'] == '家族史：阴性 ' else output_dict['家族史']
+                output_dict['家族史'] = '无' if output_dict['家族史'] == '家族史：阴性。 ' or output_dict['家族史'] == '家族史：阴性 ' or "缺失" in output_dict['家族史'] else output_dict['家族史']
                 output_dict['家族史'] = re.findall(r"家族史：(.+)", str(output_dict['家族史']))[-1] if output_dict['家族史'] != '无' else output_dict['家族史']
                 
                 # 进一步清理躯体疾病史数据
@@ -106,33 +141,85 @@ class PatientCases():
                     output_dict['重要或相关躯体疾病史'] = re.findall(r"重要或相关躯体疾病史：(.+)", str(output_dict['重要或相关躯体疾病史']))[-1]
 
                 # 数据质量过滤：确保关键字段不为"无"
-                filter = False
+                filter_flag = False
                 for key in output_dict.keys():
                     if key in ['主诉', '处理意见', '精神检查', '个人史']:
                         if output_dict[key] == '无':
-                            filter = True
+                            filter_flag = True
                             break
                             
-                # 如果通过过滤，进行进一步处理
-                if filter:
-                    continue
-                else:
+                # 如果通过过滤，收集需要API处理的数据
+                if not filter_flag:
+                    patients_basic_info.append(output_dict.copy())
                     if self.use_api:
-                        # 使用API提取个人史和精神检查的详细信息
-                        detail_personal = llm_tools_api.api_load_for_extraction(get_model_name(), output_dict['个人史'])
-                        detail_mental = llm_tools_api.api_load_for_extraction(get_model_name(), output_dict['精神检查'])
-                        detail_mental = ast.literal_eval(detail_mental)
-                        detail_personal = ast.literal_eval(detail_personal)
-                        output_dict['个人史'] = detail_personal
-                        output_dict['精神检查'] = detail_mental
-                    else:
-                        # TODO: 本地模型处理逻辑待实现
-                        detail_mental = llm_tools_api.load_Qwen_for_extraction(output_dict['精神检查'])
-                    output_list.append(output_dict)
+                        patients_for_api.append({
+                            'index': len(patients_basic_info) - 1,
+                            'personal_history': output_dict['个人史'],
+                            'mental_exam': output_dict['精神检查']
+                        })
+        
+        # 并行处理API调用
+        if self.use_api and patients_for_api:
+            print(f"开始并行处理 {len(patients_for_api)} 个患者的API请求...")
+            
+            def process_single_patient_api(patient_api_data):
+                """处理单个患者的API请求"""
+                try:
+                    index = patient_api_data['index']
+                    personal_history = patient_api_data['personal_history']
+                    mental_exam = patient_api_data['mental_exam']
+                    
+                    # 并行调用API提取个人史和精神检查的详细信息
+                    with ThreadPoolExecutor(max_workers=ConcurrencyConfig.MAX_SINGLE_PATIENT_API_WORKERS) as executor:
+                        future_personal = executor.submit(llm_tools_api.api_load_for_extraction, get_model_name(), personal_history)
+                        future_mental = executor.submit(llm_tools_api.api_load_for_extraction, get_model_name(), mental_exam)
+                        
+                        # 设置超时并获取结果
+                        detail_personal = future_personal.result(timeout=ConcurrencyConfig.REQUEST_TIMEOUT)
+                        detail_mental = future_mental.result(timeout=ConcurrencyConfig.REQUEST_TIMEOUT)
+                    
+                    detail_personal = ast.literal_eval(detail_personal)
+                    detail_mental = ast.literal_eval(detail_mental)
+                    
+                    return {
+                        'index': index,
+                        'personal_history': detail_personal,
+                        'mental_exam': detail_mental
+                    }
+                except Exception as e:
+                    print(f"处理患者 {index} 时出错: {e}")
+                    return {
+                        'index': patient_api_data['index'],
+                        'personal_history': patient_api_data['personal_history'],
+                        'mental_exam': patient_api_data['mental_exam']
+                    }
+            
+            # 使用线程池并行处理所有患者的API请求
+            with ThreadPoolExecutor(max_workers=min(ConcurrencyConfig.MAX_API_EXTRACTION_WORKERS, len(patients_for_api))) as executor:
+                future_to_patient = {executor.submit(process_single_patient_api, patient_data): patient_data for patient_data in patients_for_api}
+                
+                api_results = {}
+                for future in tqdm(as_completed(future_to_patient), total=len(patients_for_api), desc="API处理进度"):
+                    result = future.result()
+                    api_results[result['index']] = result
+            
+            # 将API结果合并到基本信息中
+            for i, basic_info in enumerate(patients_basic_info):
+                if i in api_results:
+                    basic_info['个人史'] = api_results[i]['personal_history']
+                    basic_info['精神检查'] = api_results[i]['mental_exam']
+                output_list.append(basic_info)
+        else:
+            # 不使用API时的处理
+            for basic_info in patients_basic_info:
+                if not self.use_api:
+                    # TODO: 本地模型处理逻辑待实现
+                    detail_mental = llm_tools_api.load_Qwen_for_extraction(basic_info['精神检查'])
+                output_list.append(basic_info)
                     
         # 将处理后的数据保存为JSON文件
-        with open (self.json_path, 'w') as f:
-            json_data = json.dump(output_list, f, indent=2, ensure_ascii=False)
+        with open(self.json_path, 'w') as f:
+            json.dump(output_list, f, indent=2, ensure_ascii=False)
 
 
     def key_word_selelction1(self):
@@ -268,7 +355,34 @@ class PatientCases():
         # 保存故事到文件
         with open(output_path, 'w') as f:
             f.write(story)
-
+    
+    def generate_background_story_parallel(self, patient_template, story_index, output_dir):
+        """
+        为单个患者生成单个背景故事（用于并行处理）
+        
+        Args:
+            patient_template (dict): 患者模板信息
+            story_index (int): 故事编号
+            output_dir (str): 输出目录
+            
+        Returns:
+            str: 成功信息或错误信息
+        """
+        try:
+            # 创建患者专属目录（如果不存在）
+            patient_dir = os.path.join(output_dir, f'patient_{patient_template["患者"]}')
+            if not os.path.exists(patient_dir):
+                os.makedirs(patient_dir, exist_ok=True)
+            
+            # 定义输出文件路径
+            output_path = os.path.join(patient_dir, f'story_{story_index}.txt')
+            
+            # 生成并保存背景故事
+            self.save_background_story(patient_template, output_path)
+            
+            return f"成功生成患者 {patient_template['患者']} 的故事 {story_index}"
+        except Exception as e:
+            return f"生成患者 {patient_template['患者']} 的故事 {story_index} 时出错: {e}"
 
     def statistics(self):
         """
@@ -354,15 +468,49 @@ NUM = 5    # 1个患者案例将用于生成5个对话
 with open(PATIENT_CASES_JSON_PATH, 'r') as f:
     patient_info = json.load(f)
 
-# 为每个患者模板生成背景经历故事
-for patient_template in tqdm(patient_info):
+# 为每个患者模板生成背景经历故事（并行处理）
+print(f"开始并行生成 {len(patient_info)} 个患者的背景故事，每个患者生成 {NUM} 个故事...")
+
+# 创建所有需要处理的任务列表
+tasks = []
+for patient_template in patient_info:
     for i in range(NUM):
-        # 创建患者专属目录（如果不存在）
-        if not os.path.exists(os.path.join(OUTPUT_PASTEXP_PATH, 'patient_{}'.format(patient_template['患者']))):
-            os.mkdir(os.path.join(OUTPUT_PASTEXP_PATH, 'patient_{}'.format(patient_template['患者'])))
-        
-        # 定义输出文件路径
-        output_path = os.path.join(OUTPUT_PASTEXP_PATH, 'patient_{}'.format(patient_template['患者']), 'story_{}.txt'.format(i+1))
-        
-        # 生成并保存背景故事
-        patient.save_background_story(patient_template, output_path)
+        tasks.append({
+            'patient_template': patient_template,
+            'story_index': i + 1,
+            'output_dir': OUTPUT_PASTEXP_PATH
+        })
+
+print(f"总共需要生成 {len(tasks)} 个背景故事")
+
+# 使用线程池并行生成背景故事
+max_workers = min(ConcurrencyConfig.MAX_STORY_GENERATION_WORKERS, len(tasks))  # 限制最大并发数，避免过度并发
+print(f"使用 {max_workers} 个并发线程进行处理...")
+
+def process_story_task(task):
+    """处理单个故事生成任务"""
+    return patient.generate_background_story_parallel(
+        task['patient_template'], 
+        task['story_index'], 
+        task['output_dir']
+    )
+
+with ThreadPoolExecutor(max_workers=max_workers) as executor:
+    # 提交所有任务
+    future_to_task = {executor.submit(process_story_task, task): task for task in tasks}
+    
+    # 收集结果并显示进度
+    success_count = 0
+    error_count = 0
+    
+    for future in tqdm(as_completed(future_to_task), total=len(tasks), desc="背景故事生成进度"):
+        result = future.result()
+        if "成功生成" in result:
+            success_count += 1
+        else:
+            error_count += 1
+            print(f"错误: {result}")
+
+print(f"\n背景故事生成完成!")
+print(f"成功生成: {success_count} 个故事")
+print(f"生成失败: {error_count} 个故事")

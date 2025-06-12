@@ -34,7 +34,7 @@ class PathConfig:
     
     # 原始数据路径
     RAW_DATA_DIR = os.path.join(PROJECT_ROOT, 'raw_data')
-    PATIENT_INFO_PATH = os.path.join(RAW_DATA_DIR, 'pa20.json')
+    PATIENT_INFO_PATH = os.path.join(RAW_DATA_DIR, 'pat_smhc_train.json')
     PATIENT_CASES_ORIGIN_PATH = '/tcci_mnt/shihao/data/smhc_train.xlsx'
     PATIENT_CASES_JSON_PATH = os.path.join(RAW_DATA_DIR, 'pat_smhc_train.json')
     
