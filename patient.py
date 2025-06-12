@@ -3,12 +3,13 @@ import random
 from transformers import AutoModelForCausalLM, AutoTokenizer
 import torch
 import llm_tools_api
+from config import SystemConfig
 
 class Patient(llm_tools_api.PatientCost):
     def __init__(self, patient_template, model_path, use_api, story_path) -> None:
         super().__init__(model_path.split('/')[-1])
         self.model_path = model_path
-        self.model_name = model_path.split('/')[-1]
+        self.model_name = model_path #.split('/')[-1]
         self.patient_model = None
         self.patient_tokenizer = None
         self.experience = None
@@ -52,8 +53,8 @@ class Patient(llm_tools_api.PatientCost):
                 chat_response = self.client.chat.completions.create(
                         model=self.model_name,
                         messages=self.messages,
-                        top_p=0.85,
-                        frequency_penalty=0.8
+                                        top_p=SystemConfig.DEFAULT_TOP_P,
+                frequency_penalty=SystemConfig.DEFAULT_FREQUENCY_PENALTY
                     )
                 super().money_cost(chat_response.usage.prompt_tokens, chat_response.usage.completion_tokens)
                 patient_response = chat_response.choices[0].message.content
@@ -66,8 +67,8 @@ class Patient(llm_tools_api.PatientCost):
                 chat_response = self.client.chat.completions.create(
                         model=self.model_name,
                         messages=self.messages,
-                        top_p=0.85,
-                        frequency_penalty=0.7
+                                            top_p=SystemConfig.DEFAULT_TOP_P,
+                    frequency_penalty=SystemConfig.DEFAULT_FREQUENCY_PENALTY
                     )
                 super().money_cost(chat_response.usage.prompt_tokens, chat_response.usage.completion_tokens)
                 patient_response = chat_response.choices[0].message.content
@@ -122,8 +123,8 @@ class Roleplay_Patient:
             chat_response = self.client.chat.completions.create(
                     model=self.model_name,
                     messages=self.messages,
-                    top_p=0.85,
-                    frequency_penalty=0.8
+                    top_p=SystemConfig.DEFAULT_TOP_P,
+                    frequency_penalty=SystemConfig.DEFAULT_FREQUENCY_PENALTY
                 )
             patient_response = chat_response.choices[0].message.content
             self.messages.pop()

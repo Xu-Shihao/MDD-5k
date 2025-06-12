@@ -2,17 +2,18 @@ import os
 import pandas as pd
 import json
 from openai import OpenAI
+from config import APIConfig, ModelConfig, SystemConfig
 # Set OpenAI's API key and API base to use vLLM's API server.
 
 class DoctorCost:
     def __init__(self, model_name) -> None:
         self.model_name = model_name
-        self.input_cost = 15 / 1000000
-        self.output_cost = 5 / 1000000
+        self.input_cost = ModelConfig.GPT4_INPUT_COST
+        self.output_cost = ModelConfig.GPT4_OUTPUT_COST
         self.total_cost = 0
 
     def money_cost(self, prompt_token_num, generate_token_num):
-        if self.model_name == 'gpt-4o':
+        if self.model_name == ModelConfig.GPT4_MODEL_NAME:
             self.total_cost += prompt_token_num * self.input_cost + generate_token_num * self.output_cost
 
     def get_cost(self):
@@ -21,12 +22,12 @@ class DoctorCost:
 class PatientCost:
     def __init__(self, model_name) -> None:
         self.model_name = model_name
-        self.input_cost = 15 / 1000000
-        self.output_cost = 5 / 1000000
+        self.input_cost = ModelConfig.GPT4_INPUT_COST
+        self.output_cost = ModelConfig.GPT4_OUTPUT_COST
         self.total_cost = 0
 
     def money_cost(self, prompt_token_num, generate_token_num):
-        if self.model_name == 'gpt-4o':
+        if self.model_name == ModelConfig.GPT4_MODEL_NAME:
             self.total_cost += prompt_token_num * self.input_cost + generate_token_num * self.output_cost
     
     def get_cost(self):
@@ -34,15 +35,16 @@ class PatientCost:
 
 
 def gpt4_client_init():
-    openai_api_key = #enter your apikey here
+    openai_api_key = APIConfig.OPENAI_API_KEY #enter your apikey here
     client = OpenAI(
-        api_key=openai_api_key
+        api_key=openai_api_key,
+        base_url=APIConfig.OPENAI_BASE_URL
     )
     return client
 
 def qwen_client_init():
-    openai_api_key = #enter your apikey here
-    openai_api_base = #api
+    openai_api_key = APIConfig.LOCAL_API_KEY #enter your apikey here
+    openai_api_base = APIConfig.LOCAL_BASE_URL #api
 
     client = OpenAI(
         api_key=openai_api_key,
@@ -90,7 +92,7 @@ def api_load_for_extraction(model_name, input_sentence):    #extract kv pair
         model=model_name,
         messages=messages,
         response_format={"type": "json_object"},
-        temperature=0.8
+        temperature=SystemConfig.DEFAULT_TEMPERATURE
     )
     response = chat_response.choices[0].message.content
     return response
@@ -104,7 +106,7 @@ def api_load_for_background_gen(model_name, input_sentence):    #background stor
     chat_response = client.chat.completions.create(
         model=model_name,
         messages=messages,
-        top_p=0.9
+        top_p=ModelConfig.DEFAULT_TOP_P
     )
     response = chat_response.choices[0].message.content
     return response

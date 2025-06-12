@@ -4,14 +4,19 @@ from diagtree import DiagTree
 import json
 import os
 from tqdm import tqdm
+from config import (
+    get_model_name, get_patient_info_path, get_doctor_prompt_path,
+    get_diagtree_path, get_output_dir, get_background_story_dir,
+    SystemConfig
+)
 
-DOCTOR_PROMPT_PATH = './prompts/doctor/doctor_persona.json'
-PATIENT_INFO_PATH = './raw_data/pa20.json'
-DIAGTREE_PATH = './prompts/diagtree'
-MODEL_NAME = 'gpt-4o'    #Qwen2-72B-Instruct
-NUM = 5
-OUTPUT_DATASYN_PATH = './DataSyn'
-OUTPUT_PASTEXP_PATH = './prompts/patient/background_story'
+DOCTOR_PROMPT_PATH = get_doctor_prompt_path()
+PATIENT_INFO_PATH = get_patient_info_path()
+DIAGTREE_PATH = get_diagtree_path()
+MODEL_NAME = get_model_name()
+NUM = SystemConfig.NUM_CONVERSATIONS
+OUTPUT_DATASYN_PATH = get_output_dir()
+OUTPUT_PASTEXP_PATH = get_background_story_dir()
 
 total_cost = 0
 

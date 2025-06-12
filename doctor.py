@@ -5,6 +5,7 @@ import torch
 import llm_tools_api
 from diagtree import DiagTree
 import os
+from config import SystemConfig
 
 
 class Doctor(llm_tools_api.DoctorCost):
@@ -14,7 +15,7 @@ class Doctor(llm_tools_api.DoctorCost):
         self.doctor_prompt_path = doctor_prompt_path
         self.diagtree_path = diagtree_path
         self.model_path = model_path
-        self.model_name = model_path.split('/')[-1]
+        self.model_name = model_path #.split('/')[-1]
         self.doctor_model = None
         self.doctor_tokenizer = None
         self.doctor_prompt = None
@@ -77,7 +78,7 @@ class Doctor(llm_tools_api.DoctorCost):
                 chat_response = self.client.chat.completions.create(
                     model=self.model_name,
                     messages=self.messages,
-                    top_p = 0.93
+                    top_p=SystemConfig.DEFAULT_TOP_P
                 )
                 super().money_cost(chat_response.usage.prompt_tokens, chat_response.usage.completion_tokens)
                 doctor_response = chat_response.choices[0].message.content
@@ -134,8 +135,8 @@ class Doctor(llm_tools_api.DoctorCost):
                         chat_response = self.client.chat.completions.create(
                             model=self.model_name,
                             messages=self.messages,
-                            top_p=0.93,
-                            frequency_penalty=0.8
+                            top_p=SystemConfig.DEFAULT_TOP_P,
+                            frequency_penalty=SystemConfig.DEFAULT_FREQUENCY_PENALTY
                         )
                         super().money_cost(chat_response.usage.prompt_tokens, chat_response.usage.completion_tokens)
                         doctor_response = chat_response.choices[0].message.content
@@ -167,8 +168,8 @@ class Doctor(llm_tools_api.DoctorCost):
                     chat_response = self.client.chat.completions.create(
                         model=self.model_name,
                         messages=self.messages,    #不直接使用过去的历史，使用历史+prompt
-                        top_p=0.93,
-                        frequency_penalty=0.8
+                        top_p=SystemConfig.DEFAULT_TOP_P,
+                        frequency_penalty=SystemConfig.DEFAULT_FREQUENCY_PENALTY
                     )
                     super().money_cost(chat_response.usage.prompt_tokens, chat_response.usage.completion_tokens)
                     doctor_response = chat_response.choices[0].message.content
@@ -244,7 +245,7 @@ class Roleplay_Doctor():
                 return doctor_response
             else:
                 doctor_prompt = '你是一名专业的精神卫生中心临床心理科主任医师，对一名患者进行问诊,使用口语化的表达。\n你与患者的所有对话历史如下{}。\n你回复患者的内容必须完全依据：\n1.对话历史 \n2.不要重复询问之前问过的问题。 \
-                            "3.\n你每次只能围绕1个话题询问。使用简洁的，口语化的表达进行文本生成\n3.不要生成类似“谢谢”，“你的回答很有帮助”，”听到你的描述我很“，“你提到”之类的话。不要与历史对话使用相同的开头\n输出一整段文字，不要有空行。'.format(dialogue_history[-8:])
+                "3.\n你每次只能围绕1个话题询问。使用简洁的，口语化的表达进行文本生成\n3.不要生成类似“谢谢”，“你的回答很有帮助”，”听到你的描述我很“，“你提到”之类的话。不要与历史对话使用相同的开头\n输出一整段文字，不要有空行。'.format(dialogue_history[-8:])
                 self.messages.append({"role": "user", "content": doctor_prompt})
                 chat_response = self.client.chat.completions.create(
                         model=self.model_name,
